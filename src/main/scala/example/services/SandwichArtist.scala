@@ -1,25 +1,53 @@
 package example.services
 
-import cats.data.EitherT
+import cats.data.ValidatedNel
 import example.{Protein, Sandwich}
 
 sealed trait SandwichArtistError
-final case class WrappedBakerError(bakerError: BakerError)                      extends SandwichArtistError
-final case class WrappedVeggieCutterError(veggieCutterError: VeggieCutterError) extends SandwichArtistError
-final case class WrappedGrillerError(grillerError: GrillerError)                extends SandwichArtistError
+final case class WrappedBakerError(bakerError: BakerError)       extends SandwichArtistError
+final case class WrappedVeggieCutterError(veggieCutterError: VeggieCutterError)
+    extends SandwichArtistError
+final case class WrappedGrillerError(grillerError: GrillerError) extends SandwichArtistError
 
 object SandwichArtist {
+  import cats.implicits._
   import slick.jdbc.PostgresProfile.api._
-  import scala.util.chaining._
   import slickeffect.implicits._
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  def assembleSandwich(desiredProtein: Protein): EitherT[DBIO, SandwichArtistError, Sandwich] =
-    for {
-      bun         <- Baker.bakeDoughIntoBuns().leftMap(WrappedBakerError(_))
-      tomatoSlice <- VeggieCutter.getTomatoSlice().leftMap(WrappedVeggieCutterError(_))
-      patty       <- Griller.cookPatty(desiredProtein).leftMap(WrappedGrillerError(_) : SandwichArtistError)
+  def assembleSandwich(desiredProtein: Protein): DBIO[Either[SandwichArtistError, Sandwich]] = {
+    val res = for {
+      bun         <- Baker.bakeDoughIntoBuns().leftMap(WrappedBakerError)
+      tomatoSlice <- VeggieCutter.getTomatoSlice().leftMap(WrappedVeggieCutterError)
+      patty       <-
+        Griller.cookPatty(desiredProtein).leftMap(WrappedGrillerError(_): SandwichArtistError)
     } yield Sandwich(bun, tomatoSlice, patty)
+
+//    Helpers.transactionallyWithRollbackOnLeft
+    (res.value)
+  }
+
+  def assembleSandwichPar(
+      desiredProtein: Protein
+  ): DBIO[ValidatedNel[SandwichArtistError, Sandwich]] = {
+    val res = (
+      Baker
+        .bakeDoughIntoBuns()
+        .leftMap(WrappedBakerError(_): SandwichArtistError)
+        .toValidatedNel,
+      VeggieCutter
+        .getTomatoSlice()
+        .leftMap(WrappedVeggieCutterError(_): SandwichArtistError)
+        .toValidatedNel,
+      Griller
+        .cookPatty(desiredProtein)
+        .leftMap(WrappedGrillerError(_): SandwichArtistError)
+        .toValidatedNel
+    ).mapN { case a => a.mapN { case (aa, bb, cc) => Sandwich(aa, bb, cc) } }
+
+//    Helpers.transactionallyWithRollbackOnInvalid
+    (res)
+  }
 
 }

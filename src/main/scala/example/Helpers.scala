@@ -1,6 +1,7 @@
 package example
 
-import cats.data.EitherT
+import cats.data.{EitherT, Validated, ValidatedNel}
+import slick.jdbc.TransactionIsolation
 import slick.relational.RelationalProfile
 
 object Helpers {
@@ -32,7 +33,24 @@ object Helpers {
           case _ => errorOnDeleteFailure.asLeft
         }
         .pipe(EitherT.apply[DBIO, E, T])
-  } yield firstRecord
+    } yield firstRecord
   }
 
+  def transactionallyWithRollbackOnLeft[E, A](
+      dbio: DBIO[Either[E, A]]
+  ): DBIO[Either[E, A]] =
+    dbio.transactionally.withTransactionIsolation(TransactionIsolation.ReadUncommitted).flatMap {
+      case Left(_)  =>
+        (DBIO.failed(new Exception): DBIO[Either[E, A]]).recoverWith { case _ => dbio }
+      case Right(_) => dbio
+    }
+
+  def transactionallyWithRollbackOnInvalid[E, A](
+      dbio: DBIO[ValidatedNel[E, A]]
+  ): DBIO[ValidatedNel[E, A]] =
+    dbio.transactionally.withTransactionIsolation(TransactionIsolation.ReadUncommitted).flatMap {
+      case Validated.Invalid(_) =>
+        (DBIO.failed(new Exception): DBIO[ValidatedNel[E, A]]).recoverWith { case _ => dbio }
+      case Validated.Valid(_)   => dbio
+    }
 }

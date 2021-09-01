@@ -9,6 +9,7 @@ class HelloSpec extends AsyncFreeSpec {
   import cats.effect.unsafe.implicits._
   import slickeffect.implicits._
   import scala.util.chaining._
+  import org.scalatest.matchers.must.Matchers._
 
   def setupSchema: DBIO[List[Unit]] = List(
     tables.Tomatoes.schema.createIfNotExists,
@@ -34,6 +35,21 @@ class HelloSpec extends AsyncFreeSpec {
     tables.Patties.delete,
   ).traverse(x => x: DBIO[Int])
 
+  "When we are missing ingredients, we should report invalid and not consume resources" in {
+    val f = for {
+      _        <- clearDb
+      tomatoes <- Stocker.buyTomates(1)
+      _         = pprint.pprintln(tomatoes)
+
+      sandwiches <- SandwichArtist.assembleSandwichPar(Steak(0))
+      _           = pprint.pprintln(sandwiches)
+    } yield {
+      pprint.log(sandwiches)
+      sandwiches.isValid mustBe false
+    }
+
+    f.pipe(DBIORunner.run).unsafeToFuture()
+  }
   "Try assembling a sandwich with no ingredients" in {
     val f = for {
       _        <- clearDb
@@ -48,9 +64,13 @@ class HelloSpec extends AsyncFreeSpec {
       _         = pprint.pprintln(steaks)
       _         = pprint.pprintln(tomatoes)
 
-      s <- SandwichArtist.assembleSandwich(Steak(0)).value
-      _  = pprint.pprintln(s)
-    } yield succeed
+      sandwiches <- SandwichArtist.assembleSandwichPar(Steak(0))
+      _           = pprint.pprintln(sandwiches)
+    } yield {
+      pprint.log(sandwiches)
+      sandwiches.isValid mustBe true
+
+    }
 
     f.pipe(DBIORunner.run).unsafeToFuture()
   }
