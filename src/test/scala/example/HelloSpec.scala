@@ -38,18 +38,18 @@ class HelloSpec extends AsyncFreeSpec {
   "When we are missing ingredients, we should report invalid and not consume resources" in {
     val f = for {
       _        <- clearDb.pipe(DBIORunner.run)
-      tomatoes <- Stocker.buyTomates(1).pipe(DBIORunner.run)
+      _ <- Stocker.buyTomates(1).pipe(DBIORunner.run)
       _ <- Stocker.buyDoughs(1).pipe(DBIORunner.run)
 
-      sandwiches <- SandwichArtist.assembleSandwich(Steak(0)).pipe(DBIORunner.run)
+      sandwiches <- SandwichArtist.assembleSandwichPar(Steak(0)).pipe(DBIORunner.run)
     } yield {
       pprint.log(sandwiches)
-      sandwiches.isRight mustBe false
+      sandwiches.isValid mustBe false
     }
 
     f.unsafeToFuture()
   }
-  "Try assembling a sandwich with no ingredients" ignore {
+  "Try assembling a sandwich with no ingredients" in {
     val f = for {
       _        <- clearDb
       doughs   <- Stocker.buyDoughs(1)

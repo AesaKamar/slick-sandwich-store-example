@@ -1,10 +1,7 @@
 package example
 
 import cats.data.{EitherT, Validated, ValidatedNel}
-import slick.jdbc.TransactionIsolation
 import slick.relational.RelationalProfile
-
-import scala.util.{Failure, Success}
 
 object Helpers {
 
