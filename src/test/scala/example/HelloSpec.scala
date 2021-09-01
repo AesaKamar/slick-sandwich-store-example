@@ -49,7 +49,7 @@ class HelloSpec extends AsyncFreeSpec {
 
     f.unsafeToFuture()
   }
-  "Try assembling a sandwich with no ingredients" in {
+  "When we have all ingredients, we should report valid" in {
     val f = for {
       _        <- clearDb
       doughs   <- Stocker.buyDoughs(1)
