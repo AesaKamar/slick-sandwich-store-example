@@ -37,7 +37,7 @@ class HelloSpec extends AsyncFreeSpec {
 
   "When we are missing ingredients, we should report invalid and not consume resources" in {
     val f = for {
-      _        <- clearDb.pipe(DBIORunner.run)
+      _ <- clearDb.pipe(DBIORunner.run)
       _ <- Stocker.buyTomates(1).pipe(DBIORunner.run)
       _ <- Stocker.buyDoughs(1).pipe(DBIORunner.run)
 
