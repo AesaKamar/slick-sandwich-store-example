@@ -14,13 +14,14 @@ object VeggieCutter {
   import slick.jdbc.PostgresProfile.api._
   import scala.util.chaining._
   import slickeffect.implicits._
+  import Helpers._
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
   private val numSlicesPerTomato = 5
 
-  private def cutTomatoIntoSlicesAndGetOneSlice(): EitherT[DBIO, VeggieCutterError, TomatoSlice] =
-    for {
+  private def cutTomatoIntoSlicesAndGetOneSlice(): DBIO[Either[VeggieCutterError, TomatoSlice]] = {
+    val res = for {
       tomato          <- Helpers.findAndDeleteFirstRecord[Tomato, TomatoRecord, VeggieCutterError](Tomatoes)(
                            _.id,
                            _.id,
@@ -42,6 +43,8 @@ object VeggieCutter {
           errorOnDeleteFailure = TomatoGotStolen
         ).pipe(EitherT.apply)
     } yield tomatoSlice
+    res.value.transactionallyWithRollbackOnLeft
+  }
 
   def getTomatoSlice(): DBIO[Either[VeggieCutterError, TomatoSlice]] = {
     val res = for {
@@ -54,11 +57,11 @@ object VeggieCutter {
             errorOnDeleteFailure = TomatoSliceGotStolen
           ).pipe(EitherT.apply)
           .leftFlatMap {
-            case CouldNotFindSliceButWillCutOneMyself => cutTomatoIntoSlicesAndGetOneSlice()
+            case CouldNotFindSliceButWillCutOneMyself => cutTomatoIntoSlicesAndGetOneSlice().pipe(EitherT.apply)
             case err                                  => EitherT.leftT[DBIO, TomatoSlice].apply(err)
           }
     } yield slice
 
-    res.value.transactionally
+    res.value.transactionallyWithRollbackOnLeft
   }
 }

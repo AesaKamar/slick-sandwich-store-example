@@ -3,7 +3,6 @@ package example.services
 import cats.data.EitherT
 import example.{Bun, Dough, DoughRecord, Helpers}
 import example.tables.{Buns, Doughs}
-import slick.jdbc.TransactionIsolation
 
 sealed trait BakerError
 case object NotEnoughDoughInStock extends BakerError
@@ -13,6 +12,7 @@ object Baker {
   import slick.jdbc.PostgresProfile.api._
   import scala.util.chaining._
   import slickeffect.implicits._
+  import Helpers._
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -33,7 +33,7 @@ object Baker {
           .pipe(EitherT.liftF[DBIO, BakerError, Bun])
     } yield bakedBun
 
-    res.value.transactionally
+    res.value.transactionallyWithRollbackOnLeft
   }
 
 }

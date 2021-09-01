@@ -1,7 +1,10 @@
 package example
 
 import cats.data.{EitherT, Validated, ValidatedNel}
+import slick.jdbc.TransactionIsolation
 import slick.relational.RelationalProfile
+
+import scala.util.{Failure, Success}
 
 object Helpers {
 
@@ -34,23 +37,37 @@ object Helpers {
         .pipe(EitherT.apply[DBIO, E, T])
     } yield firstRecord
 
-    res.value.transactionally
+    res.value.transactionallyWithRollbackOnLeft
   }
 
   implicit class TransactionalEitherOps[E, A](dbio: DBIO[Either[E, A]]){
-    def transactionallyWithRollbackOnLeft: DBIO[Either[E, A]] =
-      dbio.transactionally.flatMap {
+    def transactionallyWithRollbackOnLeft: DBIO[Either[E, A]] = {
+      var resVar : Either[E, A] = null
+      dbio.flatMap {
         case res @ Left(_)  =>
-          (DBIO.failed(new Exception): DBIO[Either[E, A]]).recover { case _ => res }
-        case res @ Right(_) => DBIO.successful(res)
+          resVar = res
+          (DBIO.failed(new Exception): DBIO[Either[E, A]])
+        case res @ Right(_) =>
+          resVar = res
+          DBIO.successful(res)
+      }.transactionally.asTry.flatMap {
+        _ => DBIO.successful(resVar)
       }
+    }
   }
   implicit class TransactionalValidatedOps[E, A](dbio: DBIO[ValidatedNel[E, A]]) {
-    def transactionallyWithRollbackOnInvalid: DBIO[ValidatedNel[E, A]] =
-      dbio.transactionally.flatMap {
+    def transactionallyWithRollbackOnInvalid: DBIO[ValidatedNel[E, A]] = {
+      var resVar : ValidatedNel[E, A] = null
+      dbio.flatMap {
         case res @ Validated.Invalid(_) =>
-          (DBIO.failed(new Exception): DBIO[ValidatedNel[E, A]]).recover { case _ => res }
-        case res @ Validated.Valid(_)   => DBIO.successful(res)
+          resVar = res
+          (DBIO.failed(new Exception): DBIO[ValidatedNel[E, A]])
+        case res @ Validated.Valid(_)   =>
+          resVar = res
+          DBIO.successful(res)
+      }.transactionally.asTry.flatMap {
+        _ => DBIO.successful(resVar)
       }
+    }
   }
 }

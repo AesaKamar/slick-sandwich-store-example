@@ -15,6 +15,7 @@ object Griller {
   import slick.jdbc.PostgresProfile.api._
   import scala.util.chaining._
   import slickeffect.implicits._
+  import Helpers._
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -60,7 +61,7 @@ object Griller {
                        .pipe(EitherT.liftF[DBIO, GrillerError, Patty](_))
     } yield cookedPatty
 
-    res.value.transactionally
+    res.value.transactionallyWithRollbackOnLeft
   }
 
 }
