@@ -26,7 +26,7 @@ object VeggieCutter {
                            _.id,
                            errorIfNotFound = NotEnoughTomatoesInStock,
                            errorOnDeleteFailure = TomatoGotStolen
-                         )
+                         ).pipe(EitherT.apply)
       slicesToSlice    = (1 to numSlicesPerTomato).map(TomatoSlice(tomato.id, _))
       _insertedSlices <- TomatoSlices
                            .returning(TomatoSlices)
@@ -40,21 +40,25 @@ object VeggieCutter {
           _.id,
           errorIfNotFound = TomatoGotStolen,
           errorOnDeleteFailure = TomatoGotStolen
-        )
+        ).pipe(EitherT.apply)
     } yield tomatoSlice
 
-  def getTomatoSlice(): EitherT[DBIO, VeggieCutterError, TomatoSlice] = for {
-    slice <-
-      Helpers
-        .findAndDeleteFirstRecord[TomatoSlice, TomatoSliceRecord, VeggieCutterError](TomatoSlices)(
-          _.id,
-          _.id,
-          errorIfNotFound = CouldNotFindSliceButWillCutOneMyself,
-          errorOnDeleteFailure = TomatoSliceGotStolen
-        )
-        .leftFlatMap {
-          case CouldNotFindSliceButWillCutOneMyself => cutTomatoIntoSlicesAndGetOneSlice()
-          case err                                  => EitherT.leftT[DBIO, TomatoSlice].apply(err)
-        }
-  } yield slice
+  def getTomatoSlice(): DBIO[Either[VeggieCutterError, TomatoSlice]] = {
+    val res = for {
+      slice <-
+        Helpers
+          .findAndDeleteFirstRecord[TomatoSlice, TomatoSliceRecord, VeggieCutterError](TomatoSlices)(
+            _.id,
+            _.id,
+            errorIfNotFound = CouldNotFindSliceButWillCutOneMyself,
+            errorOnDeleteFailure = TomatoSliceGotStolen
+          ).pipe(EitherT.apply)
+          .leftFlatMap {
+            case CouldNotFindSliceButWillCutOneMyself => cutTomatoIntoSlicesAndGetOneSlice()
+            case err                                  => EitherT.leftT[DBIO, TomatoSlice].apply(err)
+          }
+    } yield slice
+
+    res.value.transactionally
+  }
 }
