@@ -14,6 +14,7 @@ object SandwichArtist {
   import slick.jdbc.PostgresProfile.api._
   import slickeffect.implicits._
   import scala.util.chaining._
+  import Helpers._
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -36,7 +37,7 @@ object SandwichArtist {
           .leftMap(WrappedGrillerError(_): SandwichArtistError)
     } yield Sandwich(bun, tomatoSlice, patty)
 
-    Helpers.transactionallyWithRollbackOnLeft(res.value)
+    res.value.transactionallyWithRollbackOnLeft
   }
 
   def assembleSandwichPar(
@@ -60,7 +61,7 @@ object SandwichArtist {
         .toValidatedNel
     ).mapN { case a => a.mapN { case (aa, bb, cc) => Sandwich(aa, bb, cc) } }
 
-    Helpers.transactionallyWithRollbackOnInvalid(res)
+    res.transactionallyWithRollbackOnInvalid
   }
 
 }

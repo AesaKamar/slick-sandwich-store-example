@@ -37,21 +37,20 @@ object Helpers {
     res.value.transactionally
   }
 
-  def transactionallyWithRollbackOnLeft[E, A](
-      dbio: DBIO[Either[E, A]]
-  ): DBIO[Either[E, A]] =
-    dbio.transactionally.flatMap {
-      case res @ Left(_)  =>
-        (DBIO.failed(new Exception): DBIO[Either[E, A]]).recover { case _ => res }
-      case res @ Right(_) => DBIO.successful(res)
-    }
-
-  def transactionallyWithRollbackOnInvalid[E, A](
-      dbio: DBIO[ValidatedNel[E, A]]
-  ): DBIO[ValidatedNel[E, A]] =
-    dbio.transactionally.flatMap {
-      case res @ Validated.Invalid(_) =>
-        (DBIO.failed(new Exception): DBIO[ValidatedNel[E, A]]).recover { case _ => res }
-      case res @ Validated.Valid(_)   => DBIO.successful(res)
-    }
+  implicit class TransactionalEitherOps[E, A](dbio: DBIO[Either[E, A]]){
+    def transactionallyWithRollbackOnLeft: DBIO[Either[E, A]] =
+      dbio.transactionally.flatMap {
+        case res @ Left(_)  =>
+          (DBIO.failed(new Exception): DBIO[Either[E, A]]).recover { case _ => res }
+        case res @ Right(_) => DBIO.successful(res)
+      }
+  }
+  implicit class TransactionalValidatedOps[E, A](dbio: DBIO[ValidatedNel[E, A]]) {
+    def transactionallyWithRollbackOnInvalid: DBIO[ValidatedNel[E, A]] =
+      dbio.transactionally.flatMap {
+        case res @ Validated.Invalid(_) =>
+          (DBIO.failed(new Exception): DBIO[ValidatedNel[E, A]]).recover { case _ => res }
+        case res @ Validated.Valid(_)   => DBIO.successful(res)
+      }
+  }
 }
